@@ -1,0 +1,232 @@
+@import "tailwindcss";
+
+@theme {
+  /* The departure board: printed paper ground, pine ink, one blue for money. */
+  --color-paper: #e9eee7;
+  --color-paper-2: #f2f5f0;
+  --color-ink: #0e1c15;
+  --color-ink-60: #55625b;
+  --color-ink-40: #8a938d;
+  --color-ultra: #2b3bd1;
+  --color-signal: #e4572e;
+  --color-rule: #c6cdc3;
+
+  --font-display: var(--font-anton), "Arial Narrow", "Helvetica Neue", sans-serif;
+  --font-body: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SFMono-Regular", monospace;
+
+  --radius-flap: 2px;
+}
+
+/* Base element styles must sit in the base layer. Unlayered rules beat every
+   Tailwind utility regardless of specificity, which silently kills things like
+   text-paper on a link. */
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    background: var(--color-paper);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    font-synthesis-weight: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Keyboard focus has to be obvious against a pale ground. */
+  :focus-visible {
+    outline: 3px solid var(--color-ultra);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
+@layer components {
+  /* Every number on this site sits in a column that has to line up. */
+  .tnum {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+    letter-spacing: -0.01em;
+  }
+
+  .display {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: 0.005em;
+    text-transform: uppercase;
+  }
+
+  .ticker {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* -------------------------------------------------------------------------
+     Split-flap
+
+     A tile is two clipped halves that each draw the character in a box exactly
+     one tile tall, anchored to the tile edge that half touches. Both halves
+     therefore paint the glyph in the same place and the seam lands mid-glyph.
+     While a value changes, two extra leaves animate over the top: the outgoing
+     top falls away, then the incoming bottom drops into place.
+
+     The static halves always carry the real value, so the correct text is in
+     the DOM for crawlers and for anyone with JavaScript off.
+  ------------------------------------------------------------------------- */
+  .flap {
+    --flap-w: 0.74em;
+    --flap-h: 1.04em;
+    --flap-duration: 260ms;
+    position: relative;
+    display: inline-block;
+    width: var(--flap-w);
+    height: var(--flap-h);
+    perspective: 320px;
+    background: var(--color-ink);
+    color: var(--color-paper);
+    border-radius: var(--radius-flap);
+    overflow: hidden;
+    font-family: var(--font-display);
+    line-height: 1;
+    vertical-align: top;
+  }
+
+  /* The seam across the middle of a real flap. */
+  .flap::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    top: 50%;
+    height: 1px;
+    background: color-mix(in srgb, var(--color-paper) 24%, transparent);
+    transform: translateY(-0.5px);
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  /* Money tiles are paper with blue digits; rank tiles stay ink with pale
+     digits. Two registers on one board, same mechanism. */
+  .flap-light {
+    background: var(--color-paper-2);
+    color: var(--color-ultra);
+    box-shadow: inset 0 0 0 1px var(--color-rule);
+  }
+  .flap-light::after {
+    background: color-mix(in srgb, var(--color-ink) 18%, transparent);
+  }
+
+  /* Punctuation inside a number keeps the rhythm but drops the tile chrome. */
+  .flap-plain {
+    background: transparent;
+    color: inherit;
+    box-shadow: none;
+    width: auto;
+    min-width: 0.26em;
+  }
+  .flap-plain::after {
+    display: none;
+  }
+
+  .flap-half {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 50%;
+    overflow: hidden;
+    backface-visibility: hidden;
+  }
+
+  .flap-top { top: 0; }
+  .flap-bottom { bottom: 0; }
+
+  .flap-glyph {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: var(--flap-h);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  .flap-top .flap-glyph,
+  .flap-leaf .flap-glyph { top: 0; }
+
+  .flap-bottom .flap-glyph,
+  .flap-leaf-bottom .flap-glyph { bottom: 0; }
+
+  .flap-leaf {
+    top: 0;
+    z-index: 3;
+    transform-origin: bottom center;
+    background: inherit;
+  }
+
+  .flap-leaf-bottom {
+    top: auto;
+    bottom: 0;
+    z-index: 3;
+    transform-origin: top center;
+    background: inherit;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .flap-animating .flap-leaf {
+    animation: flap-fall var(--flap-duration) cubic-bezier(0.4, 0.05, 0.75, 0.9) both;
+    animation-delay: var(--flap-delay, 0ms);
+  }
+  .flap-animating .flap-leaf-bottom {
+    animation: flap-land var(--flap-duration) cubic-bezier(0.25, 0.4, 0.35, 1) both;
+    animation-delay: calc(var(--flap-delay, 0ms) + var(--flap-duration));
+  }
+}
+
+/* Reduced motion: no leaves, no flash. The static halves are the value and
+   state changes land instantly. */
+@media (prefers-reduced-motion: reduce) {
+  .flap-leaf,
+  .flap-leaf-bottom {
+    display: none;
+  }
+  .rank-flash-up,
+  .rank-flash-down {
+    animation: none !important;
+  }
+}
+
+@keyframes flap-fall {
+  from { transform: rotateX(0deg); }
+  to   { transform: rotateX(-90deg); }
+}
+
+@keyframes flap-land {
+  from { transform: rotateX(90deg); }
+  to   { transform: rotateX(0deg); }
+}
+
+/* A row that just changed position says so once, then goes quiet: the climber
+   in ultramarine, the row it displaced in signal orange. */
+.rank-flash-up {
+  animation: flash-up 1100ms ease-out 1;
+}
+.rank-flash-down {
+  animation: flash-down 1100ms ease-out 1;
+}
+
+@keyframes flash-up {
+  0%   { background-color: color-mix(in srgb, var(--color-ultra) 22%, transparent); }
+  100% { background-color: transparent; }
+}
+
+@keyframes flash-down {
+  0%   { background-color: color-mix(in srgb, var(--color-signal) 22%, transparent); }
+  100% { background-color: transparent; }
+}
